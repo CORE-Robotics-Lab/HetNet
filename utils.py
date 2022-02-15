@@ -126,7 +126,7 @@ def init_args_for_env(parser):
         return
 
     import gym
-    import ic3net_envs
+    import envs.ic3net_envs
 
     if env_name == 'starcraft':
         import gym_starcraft
