@@ -33,6 +33,7 @@ from multi_processing import MultiProcessTrainer
 from trainer import Trainer
 from eval_trainer import EvalTrainer
 from utils import *
+from pathlib import Path
 
 if __name__ == "__main__":
     torch.multiprocessing.set_start_method('spawn')
@@ -358,10 +359,23 @@ log['enemy_count'] = LogField(list(), True, 'epoch', 'num_steps')
 if args.plot:
     vis = visdom.Visdom(env=args.plot_env)
 
+model_dir = Path('./saved') / args.env_name
+if not model_dir.exists():
+    curr_run = 'run1'
+else:
+    exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in
+                     model_dir.iterdir() if
+                     str(folder.name).startswith('run')]
+    if len(exst_run_nums) == 0:
+        curr_run = 'run1'
+    else:
+        curr_run = 'run%i' % (max(exst_run_nums) + 1)
+run_dir = model_dir / curr_run
 
 def run(num_epochs):
     num_episodes = 0
-
+    if args.save:
+        os.makedirs(run_dir)
     global_cpu_mem_peak = np.zeros((args.nprocesses,))
     global_gpu_mem_peak = np.zeros((args.nprocesses,))
 
@@ -433,7 +447,7 @@ def run(num_epochs):
         if args.save_every and ep and args.save != '' and ep % args.save_every == 0:
             # fname, ext = args.save.split('.')
             # save(fname + '_' + str(ep) + '.' + ext)
-            save(args.save + '_' + str(ep), args)
+            save(str(ep), args)
 
         # if args.save != '':
         #     save(args.save + '_' + str(ep))
@@ -443,33 +457,14 @@ def run(num_epochs):
         ))
 
 
-def save(path, args):
-    print(path)
+def save(epoch, args):
+    print(epoch)
     d = dict()
     d['policy_net'] = policy_net.state_dict()
     d['log'] = log
     d['trainer'] = trainer.state_dict()
-    if args.env_name == 'fire_commander':
-        d['reward_params'] = {'False_Water_Pen': env.env.FALSE_WATER_DROP_PENALTY,
-                              'CAPTURE_REWARD': env.env.CAPTURE_REWARD,
-                              'NONSOURCE_CAPTURE_REWARD': env.env.NONSOURCE_CAPTURE_REWARD,
-                              'DISCOVER_SOURCE_REWARD': env.env.DISCOVER_SOURCE_REWARD,
-                              'DISCOVER_NONSOURCE_REWARD': env.env.DISCOVER_NONSOURCE_REWARD,
-                              'FIRE_PENALTY': env.env.FIRE_PENALTY,
-                              'TIMESTEP_PENALTY': env.env.TIMESTEP_PENALTY}
-
     d['seed'] = args.seed
-    torch.save(d, path + '.tar')
-    import matplotlib.pyplot as plt
-    plt.plot(d['log']['steps_taken'].data)
-    plt.xlabel('Epochs')
-    plt.ylabel('Steps Taken')
-    plt.title('Reward: ' + 'Water_Pen' + str(env.env.FALSE_WATER_DROP_PENALTY) + ' ,CAPTURE:' + str(
-        env.env.CAPTURE_REWARD) + ' ,NONSOURCE_CAPTURE:' + str(env.env.NONSOURCE_CAPTURE_REWARD) + '\n DISC_SOURCE:' + str(
-        env.env.DISCOVER_SOURCE_REWARD) + ' ,DISC_NONSOURCE:' + str(env.env.DISCOVER_NONSOURCE_REWARD) + ' ,FIRE_PEN:' + str(
-        env.env.FIRE_PENALTY) + ' ,TIME_PEN:' + str(env.env.TIMESTEP_PENALTY), fontsize=8)
-    plt.savefig(path + '.png')
-    plt.clf()
+    torch.save(d, run_dir / ('model_ep%i.pt' % (epoch)))
 
 
 def load(path):
@@ -499,7 +494,7 @@ if __name__ == '__main__':
         env.end_display()
 
     if args.save != '':
-        save(args.save)
+        save(args.num_epochs, args)
 
     if sys.flags.interactive == 0 and args.nprocesses > 1:
         trainer.quit()
