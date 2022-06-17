@@ -4,19 +4,7 @@ import sys
 import time
 import signal
 import argparse
-
-# addrss1 = 'C:\\Users\\ESI\\Documents\\PhD Georgia Tech\\PhD Research - Robotics AI\\Reports\\10- HetGAT for Learning Efficient Communication\\GitHubCodes\\HetGAT_MARL_Communication'
-# addrss2 = 'C:\\Users\\ESI\\Documents\\PhD Georgia Tech\\PhD Research - Robotics AI\\Reports\\10- HetGAT for Learning Efficient Communication\\GitHubCodes\\HetGAT_MARL_Communication\\Predator_Prey\\'
-# addrss3 = 'C:\\Users\\ESI\\Documents\\PhD Georgia Tech\\PhD Research - Robotics AI\\Reports\\10- HetGAT for Learning Efficient Communication\\GitHubCodes\\HetGAT_MARL_Communication\\test\\IC3Net'
-# sys.path.insert(0, addrss1)
-# sys.path.insert(0, addrss2)
-# sys.path.insert(0, addrss3)
-# sys.path.insert(0,'/home/rohanpaleja/PycharmProjects/HetGAT_MARL_Communication/')
-# sys.path.insert(0, '//home/rohanpaleja/PycharmProjects/HetGAT_MARL_Communication/Predator_Prey/')
-# sys.path.insert(0,'/home/rohanpaleja/PycharmProjects/HetGAT_MARL_Communication/test/IC3Net/')
-# sys.path.insert(0,'/nethome/msklar3/HetGAT_MARL_Communication/')
-# sys.path.insert(0,'/nethome/msklar3/HetGAT_MARL_Communication/Predator_Prey/')
-# sys.path.insert(0,'/nethome/msklar3/HetGAT_MARL_Communication/test/IC3Net/')
+import os
 
 import tracemalloc
 
@@ -230,11 +218,6 @@ print(args)
 if args.commnet:
     policy_net = CommNetMLP(args, num_inputs, 4)
     print(policy_net)
-elif args.hetcomm:
-    policy_action_net = HetCommNetMLP(args, num_inputs, 1)
-    policy_action_net.action = True
-    policy_perception_net = HetCommNetMLP(args, num_inputs, 2)
-    # print(policy_net)
 elif args.hetgat:
     pos_len = args.dim ** 2
     SSN_state_len = 4
