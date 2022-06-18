@@ -32,6 +32,9 @@ If you use this work and/or this codebase in your research, we ask you to please
 }
 ```
 
+## License
+Code is available under MIT license.
+
 ## Appendix: The FireCommander Domain
 A detailed description of the heterogeneous multi-agent domain that we created for our experiments, the FireCommander environment,can be accessed through the following links:
 
