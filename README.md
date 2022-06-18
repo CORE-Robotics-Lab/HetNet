@@ -19,6 +19,15 @@ python setup.py develop
 
 We **note** this repo and several files maintained are pulled/modified from https://github.com/IC3Net/IC3Net.
 
+## Sample Run Command for HetNet  
+- Predator-Prey: ``python main.py --env_name predator_prey --nfriendly_P 3 --nfriendly_A 0 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
+- Predator-Capture: ``python main.py --env_name predator_capture --nfriendly_P 2 --nfriendly_A 1 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
+- Fire-Commander: ``python main.py --env_name fire_commander --nfriendly_P 2 --nfriendly_A 1 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
+
+## Sample Run Commands for Baselines
+This is currently a work in progress. We are doing some large refactoring. Please email us with any urgent concerns!
+
+
 ## Citation
 If you use this work and/or this codebase in your research, we ask you to please cite the original AAMAS'22 paper as shown below:
 
@@ -31,6 +40,8 @@ If you use this work and/or this codebase in your research, we ask you to please
   year={2022}
 }
 ```
+
+
 
 ## License
 Code is available under MIT license.
