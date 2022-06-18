@@ -25,7 +25,7 @@ We **note** this repo and several files maintained are pulled/modified from http
 - Fire-Commander: ``python main.py --env_name fire_commander --nfriendly_P 2 --nfriendly_A 1 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
 
 ## Sample Run Commands for Baselines
-This is currently a work in progress. We are doing some large refactoring. Please email us with any urgent concerns!
+This is currently a work in progress. Baselines that are supported are MAGIC, IC3Net, CommNet, and TarMAC. We are doing some large refactoring. Please email us with any urgent concerns!
 
 
 ## Citation
