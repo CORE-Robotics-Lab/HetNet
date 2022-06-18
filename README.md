@@ -32,7 +32,7 @@ If you use this work and/or this codebase in your research, we ask you to please
 }
 ```
 
-## Appendix: The FireCommander
+## Appendix: The FireCommander Domain
 A detailed description of the heterogeneous multi-agent domain that we created for our experiments, the FireCommander environment,can be accessed through the following links:
 
 **FireCommander arXiv Paper:** FireCommander: An Interactive, Probabilistic Multi-agent Environment for Heterogeneous Robot Teams
