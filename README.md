@@ -22,7 +22,7 @@ We **note** this repo and several files maintained are pulled/modified from http
 ## Sample Run Command for HetNet  
 - Predator-Prey: ``python main.py --env_name predator_prey --nfriendly_P 3 --nfriendly_A 0 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
 - Predator-Capture: ``python main.py --env_name predator_capture --nfriendly_P 2 --nfriendly_A 1 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
-- Fire-Commander: ``python main.py --env_name fire_commander --nfriendly_P 2 --nfriendly_A 1 --nprocesses 1 --num_epochs 2000 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --batch_size 500 --max_steps 80 --hetgat --hetgat_a2c --seed 5``
+- Fire-Commander: ``python main.py --env_name fire_commander --nfriendly_P 2 --nfriendly_A 1 --nprocesses 4 --num_epochs 1400 --hid_size 128 --detach_gap 5 --lrate 0.0001 --dim 5 --max_steps 300 --hetgat --hetgat_a2c --vision 1 --nfires 1 --reward_type 3``
 
 ## Sample Run Commands for Baselines
 This is currently a work in progress. Baselines that are supported are MAGIC, IC3Net, CommNet, and TarMAC. We are doing some large refactoring. Please email us with any urgent concerns!
