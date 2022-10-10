@@ -43,11 +43,12 @@ def select_action(args, action_out):
         # self.batch_P_log_probs[i_b].append(mp.log_prob(p_idx)) # size N
 
         # sample for A
-        ma = Categorical(logits = action_out['A'])
-        a_idx = ma.sample()
+        if args.nfriendly_A !=0:
+            ma = Categorical(logits = action_out['A'])
+            a_idx = ma.sample()
 
-        for i in range(args.nfriendly_A):
-            x[0][args.nfriendly_P + i] = a_idx.cpu().numpy()[i]
+            for i in range(args.nfriendly_A):
+                x[0][args.nfriendly_P + i] = a_idx.cpu().numpy()[i]
         # save log_prob of A agents
         # self.batch_A_log_probs[i_b].append(ma.log_prob(a_idx))
         return x

@@ -575,15 +575,16 @@ class A2CPolicy(object):
         self.batch_P_log_probs[self.i_b].append(mp.log_prob(p_idx))  # size N
 
         # sample for A
-        ma = Categorical(logits=self.results['A'])
-        a_idx = torch.Tensor(actual[0][self.num_P:]).to(self.device)
+        if self.num_A != 0:
+            ma = Categorical(logits=self.results['A'])
+            a_idx = torch.Tensor(actual[0][self.num_P:]).to(self.device)
 
-        # a_idx = mp.sample()
-        # actions['A'] = a_idx.cpu().numpy()
-        # save log_prob of A agents
+            # a_idx = mp.sample()
+            # actions['A'] = a_idx.cpu().numpy()
+            # save log_prob of A agents
 
-        ma.log_prob(a_idx)
-        self.batch_A_log_probs[self.i_b].append(ma.log_prob(a_idx))
+            ma.log_prob(a_idx)
+            self.batch_A_log_probs[self.i_b].append(ma.log_prob(a_idx))
 
     '''
     Batch version
@@ -799,7 +800,8 @@ class A2CPolicy(object):
                     batch_returns[i_b][j][:r_size], batch_advs[i_b][j][:r_size] = self.batch_r_a_per_class(i_b,j,num_P,num_A)
 
         P_advs = batch_advs[:,:num_P,:] # N x num_P x Time
-        A_advs = batch_advs[:,num_P:,:] # N x num_A x Time
+        if self.num_A != 0:
+            A_advs = batch_advs[:,num_P:,:] # N x num_A x Time
 
         P_critic_target = torch.mean(batch_returns[:,:num_P,:], dim=1) # N x Time
         A_critic_target = torch.mean(batch_returns[:,num_P:,:], dim=1) # N x Time
@@ -809,10 +811,10 @@ class A2CPolicy(object):
         P_adv_mean = P_advs.mean()
         P_adv_std = P_advs.std()
         P_advs_norm = (P_advs - P_adv_mean) / (P_adv_std + eps)
-
-        A_adv_mean = A_advs.mean()
-        A_adv_std = A_advs.std()
-        A_advs_norm = (A_advs - A_adv_mean) / (A_adv_std + eps)
+        if self.num_A != 0:
+            A_adv_mean = A_advs.mean()
+            A_adv_std = A_advs.std()
+            A_advs_norm = (A_advs - A_adv_mean) / (A_adv_std + eps)
 
         # 3. calculate loss for each episode in the batch
         for i_b in range(batch_size):
@@ -822,21 +824,23 @@ class A2CPolicy(object):
             P_adv_n = P_advs_norm[i_b,:,:r_size]  # num_P x r_size
 
             batch_total_policy_loss.append(torch.sum(-P_log_prob_list * P_adv_n))
+            if self.num_A != 0:
+                A_log_prob_list = torch.stack(self.batch_A_log_probs[i_b], dim=1)
+                A_adv_n = A_advs_norm[i_b,:,:r_size]
 
-            A_log_prob_list = torch.stack(self.batch_A_log_probs[i_b], dim=1)
-            A_adv_n = A_advs_norm[i_b,:,:r_size]
-
-            batch_total_policy_loss.append(torch.sum(-A_log_prob_list * A_adv_n))
+                batch_total_policy_loss.append(torch.sum(-A_log_prob_list * A_adv_n))
 
             # critic size [r_size]
             P_critic_list = torch.stack(self.batch_P_critics[i_b]).squeeze()
-            A_critic_list = torch.stack(self.batch_A_critics[i_b]).squeeze()
+            if self.num_A != 0:
+                A_critic_list = torch.stack(self.batch_A_critics[i_b]).squeeze()
 
             batch_total_critic_loss.append(
                 F.mse_loss(P_critic_list, P_critic_target[i_b][:r_size]))
 
-            batch_total_critic_loss.append(
-                F.mse_loss(A_critic_list, A_critic_target[i_b][:r_size]))
+            if self.num_A != 0:
+                batch_total_critic_loss.append(
+                    F.mse_loss(A_critic_list.double(), A_critic_target[i_b][:r_size].double()))
 
         # reset gradients
         self.optimizer.zero_grad()

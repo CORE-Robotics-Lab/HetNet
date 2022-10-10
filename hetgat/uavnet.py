@@ -15,11 +15,10 @@ from hetgat.graph.fastreal import MultiHeteroGATLayerReal, MultiHeteroGATLayerLo
 from hetgat.graph.fastbinary import MultiHeteroGATLayerBinary, MultiHeteroGATLayerLossyBinary
 # from hetgat.utils import build_hetgraph
 import torch.nn as nn
-import numpy as np
+
 
 # GNN with state node - non-batched version
 # Used in FireCommander_Easy
-
 
 def timeit(method):
     def timed(*args, **kw):
@@ -51,14 +50,16 @@ class UAVNetA2CEasy(nn.Module):
         super(UAVNetA2CEasy, self).__init__()
 
         self.device = device
+
         # self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
         # self.nagents = args.nagents
         # self.hid_size = args.hid_size
-        # self.comm_passes = args.comm_passes
+        # self.MultiHeteroGATLayerRealcomm_passes = args.comm_passes
         # self.recurrent = args.recurrent
         self.num_P = num_P
         self.num_A = num_A
+
         self.tensor_obs = tensor_obs
         self.vision = in_dim_raw['vision']
         self.obs_squares_dict = {0: 1,1:9, 2: 25, 3: 49}
@@ -70,15 +71,6 @@ class UAVNetA2CEasy(nn.Module):
         hid_dim = hid_dim
         out_dim = out_dim
         self.hid_size = 32
-        self.action_vision = action_vision
-        if self.action_vision < 0:
-            self.action_agents_have_vision = False
-        else:
-            self.action_agents_have_vision = True
-
-        # set to True if you want no action vision but want the small observation space
-        self.small_action_observation_space = False
-
 
         hid_dim_input = {}
         for key in hid_dim:
@@ -93,14 +85,10 @@ class UAVNetA2CEasy(nn.Module):
             arrays in init_hidden and increase the in_dim and hid_dim of HeteroGATLayerReal for layer1
         '''
         if not self.tensor_obs:
-            self.prepro_obs = nn.Linear(in_dim_raw['state'] * self.obs_squares, in_dim_raw['state'] * self.obs_squares)
-            self.prepro_state = nn.Linear(self.P_s * self.obs_squares, self.P_s * self.obs_squares)
-            if self.action_vision >= 0 or self.small_action_observation_space:
-                self.prepro_state_for_action = nn.Linear(self.P_s * self.obs_squares_dict[self.action_vision], self.P_s * self.obs_squares)
-            if self.action_vision >= 0:
-                self.prepro_obs_for_action = nn.Linear(in_dim_raw['state'] * self.obs_squares_dict[self.action_vision], in_dim_raw['state'] * self.obs_squares)
-
+            self.prepro_obs = nn.Linear(in_dim['state'] * self.obs_squares, in_dim['state'] * self.obs_squares)
+            self.prepro_stat = nn.Linear(self.P_s * self.obs_squares, self.P_s * self.obs_squares)
         else:
+
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
             if self.vision == 1:
@@ -153,9 +141,10 @@ class UAVNetA2CEasy(nn.Module):
                                                            min_comm_loss=min_comm_loss, max_comm_loss=max_comm_loss)
             else:
                 self.layer1 = MultiHeteroGATLayerReal(in_dim, hid_dim,
-                                                      num_heads, action_have_vision=self.action_agents_have_vision)
+                                                      num_heads)
                 self.layer2 = MultiHeteroGATLayerReal(hid_dim_input, out_dim,
                                                       num_heads, merge='avg')
+
         else:
             if lossy_comm:
                 self.layer1 = MultiHeteroGATLayerLossyBinary(in_dim, hid_dim,
@@ -227,13 +216,19 @@ class UAVNetA2CEasy(nn.Module):
 
         return h
 
+
+
     def remove_excess_action_features_from_all(self, x):
         P = torch.zeros(1, self.P_s * self.obs_squares)
         A = torch.zeros(1, self.in_dim['A'] * self.obs_squares)
 
         for i in range(self.num_P + self.num_A):
             x_pos, f_pos = 0, 0
-            dx, df = self.in_dim['P'], self.in_dim['A']
+
+            if i < self.num_P:
+                dx, df = self.in_dim['P'], self.P_s
+            else:
+                dx, df = self.in_dim['P'], self.in_dim['A']
 
             f_i = torch.zeros(1, df * self.obs_squares)
 
@@ -256,91 +251,24 @@ class UAVNetA2CEasy(nn.Module):
 
         return P, A
 
-    def remove_excess_action_features_from_all_uneven_state(self, x):
-        """
-        function for giving action agents only the states with correspond with their observations
-        """
-        P = torch.zeros(1, self.P_s * self.obs_squares)
-        A = torch.zeros(1, self.in_dim['A'] * self.obs_squares)
-
-        for i in range(self.num_P + self.num_A):
-            # loop checked by Rohan on 8/26/21
-            x_pos, f_pos = 0, 0
-            dx, df = self.in_dim['P'], self.in_dim['A']
-
-            f_i = torch.zeros(1, df * self.obs_squares)
-
-            for _ in range(self.obs_squares):
-                f_i[0, f_pos:f_pos + df] = x[0][i][x_pos:x_pos + df]
-
-                x_pos += dx
-                f_pos += df
-
-            if i < self.num_P:
-                if i == 0:
-                    P = f_i
-                else:
-                    P = torch.cat([P, f_i], axis=0)
-            else:
-                if i == self.num_P:
-                    A = f_i
-                else:
-                    A = torch.cat([A, f_i], axis=0)
-
-        if self.action_vision == -1:
-            return P, A[:,self.in_dim['A'] * int(A.shape[1]/self.in_dim['A']/2) : self.in_dim['A'] * (int(A.shape[1]/self.in_dim['A']/2) + 1)]
-        else:
-            # tot_obs = np.arange(A.shape[1])
-            # splits = np.linspace(start=0, stop=A.shape[1], num=int(self.obs_squares_dict[self.vision])+1)
-            # middle_point = np.median(np.arange(self.obs_squares_dict[self.vision])) # zero-indexed
-            grid = np.arange(self.obs_squares).reshape((int(np.sqrt(self.obs_squares)), int(np.sqrt(self.obs_squares))))
-
-            middle_point = int(np.median(np.arange(int(np.sqrt(self.obs_squares)))))
-
-            indexes_of_action_observation = grid[
-                                            middle_point - self.action_vision:middle_point + self.action_vision + 1,
-                                            middle_point - self.action_vision:middle_point + self.action_vision + 1].flatten()
-
-            A_shaped_to_grid = A.reshape(A.shape[0], self.obs_squares, self.in_dim['A'])
-
-            # return P, A[:,int(splits[int(middle_point - self.obs_squares_dict[self.action_vision]//2)]) : int(splits[int(middle_point + self.obs_squares_dict[self.action_vision]//2)+1])]
-            return P, A_shaped_to_grid[:,indexes_of_action_observation,:].reshape(A_shaped_to_grid.shape[0], -1)
-
     def get_obs_features(self, x):
-        """
-        only supports having perception agents
-        """
-        # P = torch.zeros(1, self.in_dim['state'] * self.obs_squares)
-        P = torch.zeros(1,self.num_P, self.in_dim['state'] * self.obs_squares)
-        for i in range(self.num_P):
+        P = torch.zeros(1, self.in_dim['state'] * self.obs_squares)
 
-            # Ex. for 10x10 obs index is 100, pos index is 0
-            observation_index = int((x.shape[2] - self.in_dim['state'] * self.obs_squares) / self.obs_squares)
-            position_index = 0
+        for i in range(self.num_P):
+            ob_pos, Pi_pos = 0, 0
             P_i = torch.zeros(1, self.in_dim['state'] * self.obs_squares)
 
-            position_additive = (x.shape[2] - self.in_dim['state'] * self.obs_squares) / self.obs_squares
-            observation_additive = self.in_dim['state']
+            for _ in range(self.obs_squares):
+                ob_feat = ob_pos + self.P_s
+                P_i[0, Pi_pos:Pi_pos + self.in_dim['state']] = x[0][i][ob_feat:ob_feat + self.in_dim['state']]
 
-            next_position_index = int(position_index + position_additive)
-            next_observation_index = int(observation_index + observation_additive)
-            P_i_index_counter = 0
-            P_i_next_index_counter = observation_additive
+                ob_pos += self.P_s
+                Pi_pos += self.in_dim['state']
 
-            for j in range(self.obs_squares):
-                P_i[0,P_i_index_counter:P_i_next_index_counter] = x[0][i][observation_index:next_observation_index]
-
-                # position starts at last observation
-                position_index = int(next_observation_index)
-                # observation comes after position
-                observation_index = int(position_index + position_additive)
-
-                next_position_index = int(position_index + position_additive)
-                next_observation_index = int(observation_index + observation_additive)
-                P_i_index_counter += observation_additive
-                P_i_next_index_counter += observation_additive
-
-            P[:, i] = P_i
+            if i == 0:
+                P = P_i
+            else:
+                P = torch.cat([P, P_i], axis=0)
 
         return P
 
@@ -418,17 +346,7 @@ class UAVNetA2CEasy(nn.Module):
         cell_state_per_stat = extras['P_s'][1].to(self.device)
         cell_state_act_stat = extras['A_s'][1].to(self.device)
         cell_state_per_obs = extras['P_o'][1].to(self.device)
-
-        if self.action_vision >= 0 or self.small_action_observation_space:
-            # action should be full obs * num_squares, action is just one observation
-            x_per_stat, x_act_stat = self.remove_excess_action_features_from_all_uneven_state(x)
-            if self.action_vision >= 0:
-                x_per_obs, x_act_obs = self.get_obs_features_uneven_obs(x)
-                x_per_obs = x_per_obs.to(self.device)
-                x_act_obs = x_act_obs.to(self.device)
-            else:
-                x_per_obs = self.get_obs_features(x).to(self.device)
-        elif not self.tensor_obs:
+        if not self.tensor_obs:
             x_per_stat, x_act_stat = self.remove_excess_action_features_from_all(x)
             x_per_obs = self.get_obs_features(x).to(self.device)
         else:
@@ -438,10 +356,12 @@ class UAVNetA2CEasy(nn.Module):
         '''
         Data preprocessing - P
         '''
-        state_per_stat = torch.Tensor(x_per_stat).to(self.device)
+        # state_per_stat = torch.tensor(x_per_stat, dtype=torch.float64).to(self.device)
+
+        state_per_stat = x_per_stat.clone().detach()
 
         if not self.tensor_obs:
-            state_per_stat = self.relu(self.prepro_state(state_per_stat)) # output is 2,225
+            state_per_stat = self.relu(self.prepro_stat(state_per_stat)) # output is 2,225
         else:
             state_per_stat = self.prepro_state(state_per_stat)
             state_per_stat = self.avgpool(state_per_stat)
@@ -449,8 +369,9 @@ class UAVNetA2CEasy(nn.Module):
             state_per_stat = torch.flatten(state_per_stat, 1)
             state_per_stat = self.prepro_state_2(state_per_stat)
 
-        hidden_state_per_stat, cell_state_per_stat = self.f_module_stat(state_per_stat,
-                                                                        (hidden_state_per_stat, cell_state_per_stat))
+        hidden_state_per_stat, cell_state_per_stat = self.f_module_stat(state_per_stat.squeeze(),
+                                                                        (hidden_state_per_stat.double(),
+                                                                         cell_state_per_stat.double()))
 
         x_per_obs = x_per_obs.to(self.device)
         if not self.tensor_obs:
@@ -465,39 +386,24 @@ class UAVNetA2CEasy(nn.Module):
                 x_per_obs = torch.flatten(x_per_obs, 1)
             x_per_obs = self.prepro_obs_2(x_per_obs)
 
-        hidden_state_per_obs, cell_state_per_obs = self.f_module_obs(x_per_obs.reshape((x_per_obs.shape[1], x_per_obs.shape[2])),
-                                                                     (hidden_state_per_obs, cell_state_per_obs))
+        hidden_state_per_obs, cell_state_per_obs = self.f_module_obs(x_per_obs.squeeze(),
+                                                                     (hidden_state_per_obs.double(),
+                                                                      cell_state_per_obs.double()))
         feat_dict['P'] = torch.cat([hidden_state_per_stat, hidden_state_per_obs], dim=1)
+        if self.num_A != 0:
+            state_act = torch.Tensor(x_act_stat).to(self.device)
 
-        state_act = torch.Tensor(x_act_stat).to(self.device)
-
-        if not self.tensor_obs:
-            if self.action_vision >= 0 or self.small_action_observation_space:
-                state_act = self.relu(self.prepro_state_for_action(state_act))
-            else:
-                state_act = self.relu(self.prepro_state(state_act))
-        else:
-            state_act = self.prepro_stat(state_act)
-            state_act = self.avgpool(state_act)
-            # Np x dim x 1 x 1
-            state_act = torch.flatten(state_act, 1)
-            state_act = self.prepro_state_2(state_act)
-
-        hidden_state_act_stat, cell_state_act_stat = self.f_module_stat(state_act,
-                                                                        (hidden_state_act_stat, cell_state_act_stat))
-
-        if self.action_vision >= 0:
-            x_act_obs = x_act_obs.to(self.device)
             if not self.tensor_obs:
-                x_act_obs = self.relu(self.prepro_obs_for_action(x_act_obs)).reshape(x_act_obs.shape[1],-1)
+                state_act = self.relu(self.prepro_stat(state_act))
             else:
-                raise NotImplementedError
+                state_act = self.prepro_stat(torch.unsqueeze(state_act, dim=1))
+                # state_act = self.avgpool(state_act)
+                # # Np x dim x 1 x 1
+                # state_act = torch.flatten(state_act, 1)
+                # state_act = self.prepro_stat_2(state_act)
 
-            # hidden_state_act_obs, cell_state_act_obs = self.f_module_obs(x_act_obs.squeeze(),
-            #                                                              (hidden_state_act_obs, cell_state_act_obs))
-            feat_dict['A'] = torch.cat([hidden_state_act_stat, x_act_obs], dim=1)
-        else:
-
+            hidden_state_act_stat, cell_state_act_stat = self.f_module_stat(state_act.squeeze().reshape((state_act.shape[0], -1)),
+                                                                        (hidden_state_act_stat, cell_state_act_stat))
             feat_dict['A'] = hidden_state_act_stat
 
         # complete_state = torch.cat([state_per, state_act])
@@ -624,6 +530,7 @@ class UAVNet(nn.Module):
         self.init_hidden(self.size_of_batch)
         self.f_module_obs = nn.LSTMCell(4, 4)
         self.f_module_stat = nn.LSTMCell(25, 25)
+
         self.use_CNN = False
 
         # preprocessing of Sensor image
