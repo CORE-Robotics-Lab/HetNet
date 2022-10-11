@@ -51,12 +51,7 @@ class UAVNetA2CEasy(nn.Module):
 
         self.device = device
 
-        # self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        # self.nagents = args.nagents
-        # self.hid_size = args.hid_size
-        # self.MultiHeteroGATLayerRealcomm_passes = args.comm_passes
-        # self.recurrent = args.recurrent
         self.num_P = num_P
         self.num_A = num_A
 
@@ -84,32 +79,9 @@ class UAVNetA2CEasy(nn.Module):
             if so we'll increase the outputs below then increase hidden
             arrays in init_hidden and increase the in_dim and hid_dim of HeteroGATLayerReal for layer1
         '''
-        if not self.tensor_obs:
-            self.prepro_obs = nn.Linear(in_dim['state'] * self.obs_squares, in_dim['state'] * self.obs_squares)
-            self.prepro_stat = nn.Linear(self.P_s * self.obs_squares, self.P_s * self.obs_squares)
-        else:
 
-            self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-
-            if self.vision == 1:
-                self.prepro_obs = nn.Sequential(
-                    nn.Conv2d(3, 2, kernel_size=3, padding=1),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(kernel_size=2, stride=2)
-                )
-                self.prepro_obs_2 = nn.Linear(2, 36) # in_dim['state'] * self.obs_squares)
-            else:
-                self.prepro_obs = nn.Linear(3, 6)  # in_dim['state'] * self.obs_squares)
-                self.prepro_obs_2 = nn.Linear(6, 4)  # in_dim['state'] * self.obs_squares)
-
-            self.prepro_state = nn.Sequential(
-                nn.Conv1d(self.world_dim, 2, kernel_size=3, padding=1),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-            )
-
-
-            self.prepro_state_2 = nn.Linear(1, self.P_s * self.obs_squares)  # in_dim['state'] * self.obs_squares)
+        self.prepro_obs = nn.Linear(in_dim['state'] * self.obs_squares, in_dim['state'] * self.obs_squares)
+        self.prepro_stat = nn.Linear(self.P_s * self.obs_squares, self.P_s * self.obs_squares)
 
         self.total_state_action_in_batch = total_state_action_in_batch
         self.size_of_batch = 1
@@ -130,36 +102,17 @@ class UAVNetA2CEasy(nn.Module):
         # gnn layers
         # N layers = N round of communication during one time stamp
         if use_real:
-            if lossy_comm:
-                self.layer1 = MultiHeteroGATLayerLossyReal(in_dim, hid_dim,
-                                                           num_heads, comm_range_P=comm_range_P,
-                                                           comm_range_A=comm_range_A,
-                                                           min_comm_loss=min_comm_loss, max_comm_loss=max_comm_loss)
-                self.layer2 = MultiHeteroGATLayerLossyReal(hid_dim_input, out_dim,
-                                                           num_heads, merge='avg', comm_range_P=comm_range_P,
-                                                           comm_range_A=comm_range_A,
-                                                           min_comm_loss=min_comm_loss, max_comm_loss=max_comm_loss)
-            else:
-                self.layer1 = MultiHeteroGATLayerReal(in_dim, hid_dim,
-                                                      num_heads)
-                self.layer2 = MultiHeteroGATLayerReal(hid_dim_input, out_dim,
-                                                      num_heads, merge='avg')
 
+            self.layer1 = MultiHeteroGATLayerReal(in_dim, hid_dim,
+                                                  num_heads)
+            self.layer2 = MultiHeteroGATLayerReal(hid_dim_input, out_dim,
+                                                  num_heads, merge='avg')
         else:
-            if lossy_comm:
-                self.layer1 = MultiHeteroGATLayerLossyBinary(in_dim, hid_dim,
-                                                             num_heads, msg_dim, comm_range_P=comm_range_P,
-                                                             comm_range_A=comm_range_A, min_comm_loss=min_comm_loss,
-                                                             max_comm_loss=max_comm_loss)
-                self.layer2 = MultiHeteroGATLayerLossyBinary(hid_dim_input, out_dim,
-                                                             num_heads, msg_dim, merge='avg', comm_range_P=comm_range_P,
-                                                             comm_range_A=comm_range_A, min_comm_loss=min_comm_loss,
-                                                             max_comm_loss=max_comm_loss)
-            else:
-                self.layer1 = MultiHeteroGATLayerBinary(in_dim, hid_dim,
-                                                        num_heads, msg_dim)
-                self.layer2 = MultiHeteroGATLayerBinary(hid_dim_input, out_dim,
-                                                        num_heads, msg_dim, merge='avg')
+
+            self.layer1 = MultiHeteroGATLayerBinary(in_dim, hid_dim,
+                                                    num_heads, msg_dim)
+            self.layer2 = MultiHeteroGATLayerBinary(hid_dim_input, out_dim,
+                                                    num_heads, msg_dim, merge='avg')
 
         self.relu = nn.ReLU()
         self.use_tanh = use_tanh
@@ -192,10 +145,7 @@ class UAVNetA2CEasy(nn.Module):
     ########## from MAGIC ##############
     def forward_state_encoder(self, x):
         hidden_state, cell_state = None, None
-        if self.tensor_obs:
-            old_x, x, extras = x
-        else:
-            x, extras = x
+        x, extras = x
         # x = self.encoder(x)
 
         # hidden_state, cell_state = extras
@@ -346,11 +296,10 @@ class UAVNetA2CEasy(nn.Module):
         cell_state_per_stat = extras['P_s'][1].to(self.device)
         cell_state_act_stat = extras['A_s'][1].to(self.device)
         cell_state_per_obs = extras['P_o'][1].to(self.device)
-        if not self.tensor_obs:
-            x_per_stat, x_act_stat = self.remove_excess_action_features_from_all(x)
-            x_per_obs = self.get_obs_features(x).to(self.device)
-        else:
-            x_per_stat, x_act_stat, x_per_obs = self.get_states_obs_from_tensor(x)
+
+        x_per_stat, x_act_stat = self.remove_excess_action_features_from_all(x)
+        x_per_obs = self.get_obs_features(x).to(self.device)
+
         feat_dict = {}
 
         '''
@@ -360,31 +309,17 @@ class UAVNetA2CEasy(nn.Module):
 
         state_per_stat = x_per_stat.clone().detach()
 
-        if not self.tensor_obs:
-            state_per_stat = self.relu(self.prepro_stat(state_per_stat)) # output is 2,225
-        else:
-            state_per_stat = self.prepro_state(state_per_stat)
-            state_per_stat = self.avgpool(state_per_stat)
-            # Np x dim x 1 x 1
-            state_per_stat = torch.flatten(state_per_stat, 1)
-            state_per_stat = self.prepro_state_2(state_per_stat)
+        state_per_stat = self.relu(self.prepro_stat(state_per_stat)) # output is 2,225
+
 
         hidden_state_per_stat, cell_state_per_stat = self.f_module_stat(state_per_stat.squeeze(),
                                                                         (hidden_state_per_stat.double(),
                                                                          cell_state_per_stat.double()))
 
         x_per_obs = x_per_obs.to(self.device)
-        if not self.tensor_obs:
-            x_per_obs = self.relu(self.prepro_obs(x_per_obs))
-        else:
-            # check if following line works for vision = 1
-            x_per_obs = x_per_obs.squeeze()
-            x_per_obs = self.prepro_obs(x_per_obs)
-            if self.vision == 1:
-                x_per_obs = self.avgpool(x_per_obs)
-                # Np x dim x 1 x 1
-                x_per_obs = torch.flatten(x_per_obs, 1)
-            x_per_obs = self.prepro_obs_2(x_per_obs)
+
+        x_per_obs = self.relu(self.prepro_obs(x_per_obs))
+
 
         hidden_state_per_obs, cell_state_per_obs = self.f_module_obs(x_per_obs.squeeze(),
                                                                      (hidden_state_per_obs.double(),
@@ -393,14 +328,8 @@ class UAVNetA2CEasy(nn.Module):
         if self.num_A != 0:
             state_act = torch.Tensor(x_act_stat).to(self.device)
 
-            if not self.tensor_obs:
-                state_act = self.relu(self.prepro_stat(state_act))
-            else:
-                state_act = self.prepro_stat(torch.unsqueeze(state_act, dim=1))
-                # state_act = self.avgpool(state_act)
-                # # Np x dim x 1 x 1
-                # state_act = torch.flatten(state_act, 1)
-                # state_act = self.prepro_stat_2(state_act)
+            state_act = self.relu(self.prepro_stat(state_act))
+
 
             hidden_state_act_stat, cell_state_act_stat = self.f_module_stat(state_act.squeeze().reshape((state_act.shape[0], -1)),
                                                                         (hidden_state_act_stat, cell_state_act_stat))
