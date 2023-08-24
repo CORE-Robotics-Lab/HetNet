@@ -1,0 +1,6 @@
+
+bitstring
+gym==0.26.2
+numpy==1.23.3 # this version of numpy must be installed
+tensorboardX
+wandb

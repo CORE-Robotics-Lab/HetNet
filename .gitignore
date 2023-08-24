@@ -1,0 +1,7 @@
+.idea/
+__pycache__/
+build/
+onpolicy/scripts/results/
+onpolicy/scripts/train/transfer_policies/
+onpolicy/scripts/eval/eval_models/
+onpolicy.egg-info/

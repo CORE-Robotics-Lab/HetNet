@@ -1,0 +1,5 @@
+name: hetnet_ppo
+
+dependencies:
+  - python=3.9.12
+  - pip
