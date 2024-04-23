@@ -1,4 +1,4 @@
-# HetNet-PPO
+# HetNet-PPO Robot Demo Instructions
 
 
 This repository is based on: https://github.com/zoeyuchao/mappo
