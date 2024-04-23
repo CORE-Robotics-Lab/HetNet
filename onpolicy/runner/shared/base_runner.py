@@ -153,9 +153,11 @@ class Runner(object):
         """Restore policy's networks from a saved model."""
 
         policy_actor_state_dict = torch.load("{}/{}_actor.pt".format(os.getcwd(), self.model_dir))
+        policy_actor_state_dict.pop('critic.weight')
+        policy_actor_state_dict.pop('critic.bias')
         self.policy.actor.load_state_dict(policy_actor_state_dict)
 
-        if self.all_args.load_critic:
+        if False: # self.all_args.load_critic:
             policy_critic_state_dict =  torch.load("{}/{}_critic.pt".format(os.getcwd(), self.model_dir))
             self.policy.critic.load_state_dict(policy_critic_state_dict)
         else:

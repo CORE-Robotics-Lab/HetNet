@@ -57,6 +57,15 @@ class FireCommanderEnv(gym.Env):
 
         self.episode_limit = args.episode_limit
 
+        # rohan mods for robtarium
+        self.pred1 = []
+        self.pred2 = []
+        self.action1 = []
+        self.fire_loc1 = []
+        self.fire_loc2 = []
+        self.fire_loc3 = []
+        self.fire_loc4 = []
+
         self.eval_init_states = None
         self.episode_eval_counter = 0
 
@@ -491,6 +500,34 @@ class FireCommanderEnv(gym.Env):
         self.state = []
         for i in range(self.n_agents):
             self.state.append(state)
+
+        print('perception loc', self.predator_loc)
+        self.pred1.append(list(self.predator_loc[0]))
+        self.pred2.append(list(self.predator_loc[1]))
+        print('action loc', self.predator_capture_loc)
+        self.action1.append(list(self.predator_capture_loc[0]))
+        print('fire loc', self.fire_loc)
+        if self.fire_loc.shape[0] == 1:
+            self.fire_loc1.append(list(self.fire_loc[0]))
+            self.fire_loc2.append(None)
+            self.fire_loc3.append(None)
+            self.fire_loc4.append(None)
+        elif self.fire_loc.shape[0] == 2:
+            self.fire_loc1.append(list(self.fire_loc[0]))
+            self.fire_loc2.append(list(self.fire_loc[1]))
+            self.fire_loc3.append(None)
+            self.fire_loc4.append(None)
+        elif self.fire_loc.shape[0] == 3:
+            self.fire_loc1.append(list(self.fire_loc[0]))
+            self.fire_loc2.append(list(self.fire_loc[1]))
+            self.fire_loc3.append(list(self.fire_loc[2]))
+            self.fire_loc4.append(None)
+        elif self.fire_loc.shape[0] == 4:
+            self.fire_loc1.append(list(self.fire_loc[0]))
+            self.fire_loc2.append(list(self.fire_loc[1]))
+            self.fire_loc3.append(list(self.fire_loc[2]))
+            self.fire_loc4.append(list(self.fire_loc[3]))
+        print('episode step', self._episode_steps/self.episode_limit)
 
         return self.state
 
