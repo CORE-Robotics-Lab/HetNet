@@ -1,56 +1,24 @@
 # HetNet-PPO Robot Demo Instructions
 
+This repository contains the code for the HetNet-PPO robot demo and to be used after training
+has been completed!
 
-This repository is based on: https://github.com/zoeyuchao/mappo
-
-
-## Installation
-Install Conda environment: 
-```shell
-conda env create -f environment.yml
-conda activate hetnet_ppo
-pip install -r requirements.txt
-```
-
-Please refer to the [PyTorch](https://pytorch.org/get-started/locally/) and the [Deep Graph Library](https://www.dgl.ai/pages/start.html) websites for installing the PyTorch and DGL libraries. As an example, in the following we install PyTorch and DGL to work with `CUDA==11.8`. 
-
-```shell
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install  dgl -f https://data.dgl.ai/wheels/cu118/repo.html
-pip install  dglgo -f https://data.dgl.ai/wheels-test/repo.html
-```
-
-Install the `onpolicy` package: 
-
-```shell
-pip install -e . 
-```
-
-### Running
-
-Experiments for training HetNet-PPO can be run from the `onpolicy/scripts/train/` directory. The following are examples of running experiments for the Predator-Prey, Predator-Capture-Prey, and FireCommander environments.
+The folder and file of interest in this branch is the robotarium_python_simulator and si_go_to_point_gt.py file.
 
 
-#### Running Predator-Prey:
-
-```shell
-python train_predator.py --algorithm_name hetgat_mappo --ppo_epoch 5 --entropy_coef 0.01 --use_recurrent_policy --use_LSTM --hidden_size 128 --env_name PredatorCapture --n_types 2 --num_P 3 --num_A 0 --dim 5 --vision 0 --episode_limit 80 --episode_length 500 --num_env_steps 24000000 --seed 2 --experiment_name hetnet_ppo_pp --tensor_obs
-```
-
-#### Running Predator-Capture-Prey:
-```shell
-python train_predator.py --algorithm_name hetgat_mappo --ppo_epoch 5 --entropy_coef 0.01 --use_recurrent_policy --use_LSTM --hidden_size 128 --env_name PredatorCapture --n_types 2 --num_P 2 --num_A 1 --dim 5 --vision 0 --episode_limit 80 --episode_length 500 --num_env_steps 24000000 --seed 2 --experiment_name hetnet_ppo_pcp --tensor_obs
-```
+Once a PPO agent has been trained and saved, a trajectory can be generated using the trained agent. For a 
+2 perception and 1 action agent scenario, at each timestep, the location of each agent must be saved and the location of 
+each fire must be saved. Note as the number of fires can vary, None can be used as a standin when there is not a fire.
 
 
-#### Running FireCommander:
-```shell
-python train_fire_commander.py --algorithm_name hetgat_mappo --ppo_epoch 5 --entropy_coef 0.01 --use_recurrent_policy --use_LSTM --hidden_size 128 --env_name FireCommander --n_types 2 --num_P 2 --num_A 1 --dim 5 --vision 1 --episode_limit 300 --num_env_steps 24000000 --seed 2 --experiment_name hetnet_ppo_5x5_2p1a_fc --tensor_obs --nfires 1 --seed 2
-```
+The si_go_to_point_gt.py file is a script that can be used to generate a trajectory for the robotarium simulator. The script takes
+in the waypoints of each agent and fire locations at each timestep and utilizes a go to point controller to route agents.
+The go to point controller utilizes control barrier functions to avoid collisions. Fires will be projected in real time through the robotarium's
+graphic display.
+
+This file can be tested by running in a terminal. Further setup instructions needed to run the file correctly can be 
+found in the robotarium_python_simulator folder's README.
 
 
-
-**Note:** 
-- When the number of Action agents (--num_A) is set to 0, the Predator-Capture-Prey environment defaults to Predator-Prey.
-- For full list of parameters, default values, and descriptions, please refer to `onpolicy/config.py` and the `parse_args()` function in `onpolicy/scripts/train/train_predator.py` and `onpolicy/scripts/train/train_fire_commander.py`.
-
+Once the file has been created with the above information, the file must be uploaded here: https://www.robotarium.gatech.edu/
+alongside the image files FireLogo.png (which contains the fire image) and GTLogo.png (which contains a background 5x5 grid)
