@@ -44,8 +44,13 @@ class PredatorRunner(Runner):
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
 
+            time_start_batch = time.time()
+            # print(f"Start to train in 1 batch")
+            
             for step in range(self.episode_length):
                 # Sample actions
+                # step_time_start = time.time()
+                
                 values, actions, action_log_probs, rnn_states, rnn_obs, rnn_states_critic = self.collect(step)
 
                 # share obs is the state
@@ -63,11 +68,17 @@ class PredatorRunner(Runner):
 
                 # insert data into buffer
                 self.insert(data)
+                # print(f"time to collect 1 step: {time.time() - step_time_start}  seconds")
 
             # Computer return and update the network
             self.compute()
 
             train_infos = self.train()
+
+            batch_update_time = time.time() - time_start_batch
+            # print(f"time to train in 1 batch: {batch_update_time}  seconds")
+
+
 
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
@@ -101,6 +112,7 @@ class PredatorRunner(Runner):
                     train_win_rate = train_battles_won / train_battles_game
                     train_infos['training_win_rate'] = train_win_rate
 
+                    train_infos['batch_update_time'] = batch_update_time
                     train_battles_game = 0
                     train_battles_won = 0
                     train_episode_length = []

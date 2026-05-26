@@ -29,6 +29,11 @@ class FireCommanderEnv(gym.Env):
         self.FALSE_WATER_DROP_PENALTY = -0.1
         self.CAPTURE_REWARD = 10
         self.FIRE_PENALTY = -0.1
+        
+        self.NONSOURCE_CAPTURE_REWARD = 0 
+        self.DISCOVER_SOURCE_REWARD = 0
+        self.DISCOVER_NONSOURCE_REWARD = 0
+
         self.episode_over = False
 
         self.args = args
@@ -66,7 +71,11 @@ class FireCommanderEnv(gym.Env):
             self.TEMP_REWARD_TYPE = 'NEG_TIMESTEP_BIG_POS_CAPTURE'
         elif self.reward_type == 2:
             self.TEMP_REWARD_TYPE = 'NEG_FALSE_DUMP_PENALTY'
-
+        elif self.reward_type == 3:
+            self.TEMP_REWARD_TYPE = 'COMBINED'
+        
+        print(f"using reward type: {self.TEMP_REWARD_TYPE}")
+        
         if self.max_wind_speed is None:
             self.max_wind_speed = self.dim / 5
 
@@ -149,8 +158,12 @@ class FireCommanderEnv(gym.Env):
         if self.episode_over:
             raise RuntimeError("Episode is done")
 
-        self.false_water_drop = np.zeros(self.npredator_capture)
-        self.fire_extinguished = np.zeros(self.npredator_capture)   # 0 -> no fire, 1 -> normal fire, 2 -> fire source
+        self.false_water_drop = np.zeros(self.npredator_capture)    # if the A agents dropped water not on a fire
+        self.fire_extinguished = np.zeros(self.npredator_capture)   # if the A agent dropped water on a fire (0 -> no fire, 1 -> normal fire, 2 -> fire source)
+        self.extinguishing = np.zeros(self.npredator_capture)       # if the A agent took the extinguish action
+        self.just_discovered_source = np.zeros(self.npredator)      # if the P agent discovered a source fire
+        self.just_discovered_nonsource = np.zeros(self.npredator)   # if the P agent discovered a nonsource fire
+
 
         action = np.array(action).squeeze()
         action = np.atleast_1d(action)
@@ -240,6 +253,11 @@ class FireCommanderEnv(gym.Env):
         self.episode_over = False
         self.fire_out = False
         self.nfire = self.nfire_start   # reset fire count
+        
+        self.extinguishing = np.zeros(self.npredator_capture)
+        self.discovered_fire = []
+        self.just_discovered_source = np.zeros(self.npredator)
+        self.just_discovered_nonsource = np.zeros(self.npredator)
 
         # Locations
         if self.eval_init_states is not None:
@@ -402,7 +420,7 @@ class FireCommanderEnv(gym.Env):
         obs = []
         agent_counter = 0
 
-        for p in self.predator_loc:
+        for i, p in enumerate(self.predator_loc):
             sub_obs = copy.deepcopy(self.feature_map)
 
             if self.vision == 0:
@@ -449,6 +467,17 @@ class FireCommanderEnv(gym.Env):
 
             agent_counter += 1
             obs.append(sub_obs)
+            
+            for fire in self.fire_loc:
+                if any(np.array_equal(fire, discovered) for discovered in self.discovered_fire):
+                    continue
+
+                if fire[0] >= p[0] - self.vision and fire[0] <= p[0] + self.vision and fire[1] >= p[1] - self.vision and fire[1] <= p[1] + self.vision:
+                    self.discovered_fire.append(fire)
+                    if fire in self.ign_points_all[:,:2].astype(np.int_):
+                        self.just_discovered_source[i] = 1
+                    else:
+                        self.just_discovered_nonsource[i] = 1
 
         # 29 are concatenation of one-hot vectors including the information for the prey and predator, and also the position information of the grid
         # 10:14
@@ -464,7 +493,7 @@ class FireCommanderEnv(gym.Env):
         #         slice_y = slice(p[0], p[0] + (2 * self.vision) + 1)
         #         slice_x = slice(p[1], p[1] + (2 * self.vision) + 1)
         #         obs.append(self.bool_base_grid[slice_y, slice_x])
-        obs = np.stack(obs)
+        obs = np.stack(np.array(obs, dtype=object))
 
         return obs
 
@@ -545,11 +574,20 @@ class FireCommanderEnv(gym.Env):
                 # put out fire
                 pred_cap_loc = self.predator_capture_loc[idx - self.npredator]
                 fire_loc_idx = np.argwhere(np.all(self.fire_loc == pred_cap_loc, axis=1))
-                ign_point_idx = np.argwhere(np.all(self.ign_points_all[:,:2].astype(np.int) == pred_cap_loc, axis=1))
-
+                ign_point_idx = np.argwhere(np.all(self.ign_points_all[:,:2].astype(np.int_) == pred_cap_loc, axis=1))
+                
+                self.extinguishing[idx - self.npredator] = 1
+                
                 if len(fire_loc_idx) + len(ign_point_idx) == 0:
                     self.false_water_drop[idx - self.npredator] = 1
                 else:
+                        
+                    if len(self.discovered_fire) != 0:
+                        dis_fire_idx = np.argwhere(np.all(self.discovered_fire == pred_cap_loc, axis=1))
+
+                        if len(dis_fire_idx) != 0:
+                            del self.discovered_fire[dis_fire_idx[0][0]]
+                            
                     if len(fire_loc_idx) > 0:
                         self.pruned_list.append([int(pred_cap_loc[0]), int(pred_cap_loc[1])])
                         self.fire_extinguished[idx - self.npredator] = 1
@@ -601,10 +639,13 @@ class FireCommanderEnv(gym.Env):
             raise NotImplementedError('>>> Reward not implemented for cooperative Fire Commander')
         elif self.mode == 'competitive':
             raise NotImplementedError('>>> Reward not implemented for competitive Fire Commander')
+
         elif self.mode == 'mixed':
+            
             if self.TEMP_REWARD_TYPE == 'NEG_PER_FIRE':
                 reward_val = self.nfire * self.FIRE_PENALTY
                 reward = np.full(self.captured_fire_index, reward_val)
+                        
             elif self.TEMP_REWARD_TYPE == 'NEG_TIMESTEP_BIG_POS_CAPTURE':
                 best_extinguished_fire = np.max(self.fire_extinguished)
 
@@ -620,6 +661,24 @@ class FireCommanderEnv(gym.Env):
 
                 false_drop_penalty = self.false_water_drop * self.FALSE_WATER_DROP_PENALTY
                 reward[self.npredator:self.npredator + self.npredator_capture] += false_drop_penalty
+            
+            elif self.TEMP_REWARD_TYPE == 'COMBINED':
+                reward = np.full(self.captured_fire_index, self.FIRE_PENALTY * self.nfire)
+                best_extinguished_fire = np.max(self.fire_extinguished)
+
+                # Set positive P reward
+                reward[:self.npredator] += self.just_discovered_source * self.DISCOVER_SOURCE_REWARD
+                reward[:self.npredator] += self.just_discovered_nonsource * self.DISCOVER_NONSOURCE_REWARD
+
+                # Set position A reward
+                agents_extinguish_non_source_fire = np.array(np.where(self.fire_extinguished == 1)) + self.npredator
+                agents_extinguish_source_fire = np.array(np.where(self.fire_extinguished == 2)) + self.npredator
+
+                reward[agents_extinguish_non_source_fire] = self.NONSOURCE_CAPTURE_REWARD
+                reward[agents_extinguish_source_fire] = self.CAPTURE_REWARD
+
+                reward[self.npredator:self.npredator + self.npredator_capture] += self.false_water_drop * self.FALSE_WATER_DROP_PENALTY
+        
         else:
             raise RuntimeError("Incorrect mode, Available modes: [cooperative|competitive|mixed]")
 

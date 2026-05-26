@@ -21,8 +21,22 @@ if __name__ == "__main__":
         seed_data = torch.load(each_file)
         steps.extend(seed_data['steps_taken'])
         rewards.extend(seed_data['reward'])
-
+    
     print('Average performance over three seeds is :', np.mean(steps), ' with standard ERROR: ',
           np.std(steps) / np.sqrt(len(steps)))
     print('Average reward over three seeds is :', np.mean(rewards), ' with standard ERROR: ',
           np.std(rewards) / np.sqrt(len(rewards)))
+
+    # save to a json file
+    import json
+    save_dict = {
+        'steps_mean': np.mean(steps),
+        'steps_se': np.std(steps) / np.sqrt(len(steps)),
+        'reward_mean': np.mean(rewards),
+        'reward_se': np.std(rewards) / np.sqrt(len(rewards))
+    } 
+    with open(os.path.join(args[0], 'summary_eval.json'), 'w') as f:
+        json.dump(save_dict, f)
+    print('Saved summary to ', os.path.join(args[0], 'summary_eval.json'))
+    
+    
