@@ -52,8 +52,10 @@ class WildFire(object):
         for hotspot in self.hotspot_areas:
             x_min, x_max = hotspot[0], hotspot[1]
             y_min, y_max = hotspot[2], hotspot[3]
-            ign_points_x = np.random.randint(low=x_min, high=x_max, size=(self.num_ign_points, 1))
-            ign_points_y = np.random.randint(low=y_min, high=y_max, size=(self.num_ign_points, 1))
+            
+            ign_points_x = np.array([[x_min]]) if x_min == x_max else np.random.randint(low=x_min, high=x_max, size=(self.num_ign_points, 1))
+            ign_points_y = np.array([[y_min]]) if y_min == y_max else np.random.randint(low=y_min, high=y_max, size=(self.num_ign_points, 1))
+            
             ign_points_this_area = np.concatenate([ign_points_x, ign_points_y], axis=1)
             ign_points_all = np.concatenate([ign_points_all, ign_points_this_area], axis=0)
 
@@ -196,6 +198,10 @@ class WildFire(object):
                 if [int(x), int(y)] not in pruned_List:
                     x_new = x + x_diff * self.time_step
                     y_new = y + y_diff * self.time_step
+                    
+                    x_new = min(max(0, x_new), world_Size - 1)
+                    y_new = min(max(0, y_new), world_Size - 1)
+                    
                 else:
                     x_new = x
                     y_new = y

@@ -86,6 +86,9 @@ class FireCommanderEnv(gym.Env):
                          help="Reward type to use (0 -> negative timestep, 1 -> positive capture, 2 -> water dump penalty, 3 -> combined)")
         env.add_argument('--A_vision', type=int, default=-1,
                             help="Vision of A agents. If -1, defaults to blind")
+        env.add_argument('--shared_reward', action="store_true", default=False,
+                         help="Do you want a shared reward?")
+
 
     def multi_agent_init(self, args):
         # General variables defining the environment : CONFIG
@@ -103,6 +106,8 @@ class FireCommanderEnv(gym.Env):
         self.dims = dims = (self.dim, self.dim)
         self.stay = not args.no_stay
         self.duration = args.max_steps
+        self.shared_reward = args.shared_reward
+
 
         if self.reward_type == 0:
             self.TEMP_REWARD_TYPE = 'NEG_PER_FIRE'
@@ -189,7 +194,7 @@ class FireCommanderEnv(gym.Env):
 
         return self.obs, self._get_reward(), self.episode_over, debug
 
-    def reset(self):
+    def reset(self, eval_data=None):
         """
         Reset the state of the environment and returns an initial observation.
 
@@ -206,7 +211,12 @@ class FireCommanderEnv(gym.Env):
         self.just_discovered_nonsource = np.zeros(self.npredator)
 
         # Locations
-        locs = self._get_coordinates()
+        
+        if eval_data is None:
+            locs = self._get_coordinates()
+        else:
+            locs = np.array(eval_data)
+        
         self.predator_loc = locs[:self.npredator]
         self.predator_capture_loc = locs[self.predator_capture_index:self.captured_fire_index]
         self.fire_loc = locs[self.captured_fire_index:]
@@ -316,13 +326,13 @@ class FireCommanderEnv(gym.Env):
             obs.append(self.bool_base_grid[slice_y, slice_x])
 
             for fire in self.fire_loc:
-                if fire in np.array(self.discovered_fire):
+                if any(np.array_equal(fire, discovered) for discovered in self.discovered_fire):
                     continue
 
                 if fire[0] >= p[0] - self.vision and fire[0] <= p[0] + self.vision and fire[1] >= p[1] - self.vision and fire[1] <= p[1] + self.vision:
                     self.discovered_fire.append(fire)
 
-                    if fire in self.ign_points_all[:,:2].astype(np.int):
+                    if fire in self.ign_points_all[:, :2].astype(np.int):
                         self.just_discovered_source[i] = 1
                     else:
                         self.just_discovered_nonsource[i] = 1
@@ -339,13 +349,13 @@ class FireCommanderEnv(gym.Env):
                 c = copy.deepcopy(obs)
                 obs[-1][:, :, self.BASE:] = np.zeros(shape=obs[-1][:, :, self.BASE:].shape)
 
-        print((c[0] == obs[0]).all())
-        if (c[0] == obs[0]).all() == False:
-            print('bad')
-        print((c[1] == obs[1]).all())
-        if (c[1] == obs[1]).all() == False:
-            print('bad')
-        print((c[2] == obs[2]).all())
+        # print((c[0] == obs[0]).all())
+        # if (c[0] == obs[0]).all() == False:
+        #     print('bad')
+        # print((c[1] == obs[1]).all())
+        # if (c[1] == obs[1]).all() == False:
+        #     print('bad')
+        # print((c[2] == obs[2]).all())
 
         obs = np.stack(obs)
 
@@ -507,7 +517,13 @@ class FireCommanderEnv(gym.Env):
 
         self.stat['enemy_count'].append(self.nfire)
 
-        return reward
+        shared_reward = np.sum(reward)
+        new_reward = np.ones_like(reward) * shared_reward
+        
+        if self.shared_reward:
+            return new_reward
+        else:
+            return reward
 
     def reward_terminal(self):
         return np.zeros_like(self._get_reward())

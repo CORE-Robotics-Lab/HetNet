@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
+import pickle
 
 from action_utils import *
 from utils import *
@@ -68,10 +69,29 @@ class Trainer(object):
             episode = []
 
         reset_args = getargspec(self.env.reset).args
+
         if 'epoch' in reset_args:
-            state = self.env.reset(epoch)
+            
+            # evaluation with initial states in the evaluation config
+            if self.args.eval: 
+                with open('test_config/{}'.format(self.args.eval_config), 'rb') as handle:
+                    init_states = pickle.load(handle)
+                state = self.env.reset(epoch, eval_data=init_states[self.episode_num])
+            
+            else: 
+                state = self.env.reset(epoch)
+        
+        
         else:
-            state = self.env.reset()
+            # evaluation with initial states in the evaluation config
+            if self.args.eval:
+                with open('test_config/{}'.format(self.args.eval_config), 'rb') as handle:
+                    init_states = pickle.load(handle)
+                state = self.env.reset(eval_data=init_states[self.episode_num])
+                    
+            else: 
+                state = self.env.reset()
+        
         should_display = self.display and self.last_step
 
         if should_display:
@@ -477,38 +497,100 @@ class Trainer(object):
         return stat
 
     def run_batch(self, epoch):
-        if self.args.hetcomm:
-            batch = []
-            batch_perception = []
-        else:
-            batch = []
 
-        self.stats = dict()
-        self.stats['num_episodes'] = 0
-        while len(batch) < self.args.batch_size:
-            if self.args.batch_size - len(batch) <= self.args.max_steps:
-                self.last_step = True
-            episode, episode_stat = self.get_episode(epoch)
-            merge_stat(episode_stat, self.stats)
-            self.stats['num_episodes'] += 1
+
+        if not self.args.eval:
+
             if self.args.hetcomm:
-                batch+=episode[1]
-                batch_perception+=episode[0]
+                batch = []
+                batch_perception = []
             else:
-                batch += episode
+                batch = []
 
-        # TODO: a lot of this can be cut for hetgat
-        self.last_step = False
-        self.stats['num_steps'] = len(batch)
-        batch = Transition(*zip(*batch))
+            self.stats = dict()
+            self.stats['num_episodes'] = 0
+            while len(batch) < self.args.batch_size:
+                if self.args.batch_size - len(batch) <= self.args.max_steps:
+                    self.last_step = True
+                episode, episode_stat = self.get_episode(epoch)
+                merge_stat(episode_stat, self.stats)
+                self.stats['num_episodes'] += 1
+                if self.args.hetcomm:
+                    batch+=episode[1]
+                    batch_perception+=episode[0]
+                else:
+                    batch += episode
 
-        if self.args.hetcomm:
-            batch_perception = Transition(*zip(*batch_perception))
+            # TODO: a lot of this can be cut for hetgat
+            self.last_step = False
+            self.stats['num_steps'] = len(batch)
+            batch = Transition(*zip(*batch))
 
-        if self.args.hetcomm:
-            return [batch,batch_perception], self.stats
-        else:
-            return batch, self.stats
+            if self.args.hetcomm:
+                batch_perception = Transition(*zip(*batch_perception))
+
+            if self.args.hetcomm:
+                return [batch,batch_perception], self.stats
+            else:
+                return batch, self.stats
+
+        ################################# evaluation 
+        else: 
+            max_eval_episodes = 100
+            
+            if self.args.hetcomm:
+                batch = []
+                batch_perception = []
+            else:
+                batch = []
+
+            self.stats = dict()
+            self.stats['num_episodes'] = 0
+
+            steps_taken_array = []
+            reward_array = []
+
+
+            for k in range(max_eval_episodes):
+                
+                if self.args.batch_size - len(batch) <= self.args.max_steps:
+                    self.last_step = True
+                
+                self.episode_num = k
+                
+                episode, episode_stat = self.get_episode(epoch)
+                
+                steps_taken_array.append(episode_stat['num_steps'])
+                reward_array.append(episode_stat['reward'])
+                
+                merge_stat(episode_stat, self.stats)
+                
+                self.stats['num_episodes'] += 1
+                print('episodes completed: ', self.stats['num_episodes'])
+                
+                if self.args.hetcomm:
+                    batch += episode[1]
+                    batch_perception += episode[0]
+                else:
+                    batch += episode
+
+            self.last_step = False
+            self.stats['num_steps'] = len(batch)
+            batch = Transition(*zip(*batch))
+
+            print('mean steps taken for ', self.args.eval_string, 'is :', np.mean(steps_taken_array))
+            print('se steps taken for ', self.args.eval_string, 'is :', 
+                  np.std(steps_taken_array) / np.sqrt(len(steps_taken_array)))
+            
+            d = dict()
+            d['reward'] = reward_array
+            d['steps_taken'] = steps_taken_array
+
+            import pathlib
+            pathlib.Path(self.args.eval_string).parent.mkdir(parents=True, exist_ok=True)
+
+            torch.save(d, self.args.eval_string + '_data.pt')
+            exit(0)
 
     # only used when nprocesses=1
     def train_batch(self, epoch):

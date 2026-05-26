@@ -34,6 +34,12 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 parser = argparse.ArgumentParser(description='PyTorch RL trainer')
 # training
 # note: number of steps per epoch = epoch_size X batch_size x nprocesses
+
+parser.add_argument('--experiment_name', default='experiment', type=str,
+                    help='name of the experiment')
+parser.add_argument('--save_dir', default='./saved', type=str, help='directory to save models')
+
+
 parser.add_argument('--num_epochs', default=100, type=int,
                     help='number of training epochs')
 parser.add_argument('--epoch_size', type=int, default=10,
@@ -117,6 +123,9 @@ parser.add_argument('--eval', action='store_true', default=False,
                     help='evaluate a model')
 parser.add_argument('--eval_string', default='', type=str,
                     help='string that will be used to save result')
+parser.add_argument('--eval_config', default='', type=str,
+                    help='holds all of the evaluation starting conditions')
+
 
 # CommNet specific args
 parser.add_argument('--commnet', action='store_true', default=False,
@@ -300,7 +309,13 @@ if args.nprocesses > 1:
 else:
     if args.hetgat:
         if args.eval:
-            trainer = EvalTrainer(args, policy_net, data.init(args.env_name, args), policy)
+            
+            
+            # trainer = EvalTrainer(args, policy_net, data.init(args.env_name, args), policy)
+            trainer = Trainer(args, policy_net, data.init(args.env_name, args), policy)
+
+            
+            
         else:
             trainer = Trainer(args, policy_net, data.init(args.env_name, args), policy)
     elif args.hetcomm:
@@ -339,10 +354,14 @@ log['action_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 log['enemy_count'] = LogField(list(), True, 'epoch', 'num_steps')
 
+log['num_episodes'] = LogField(list(), True, 'epoch', None)
+log['num_steps'] = LogField(list(), True, 'epoch', None)
+
 if args.plot:
     vis = visdom.Visdom(env=args.plot_env)
 
-model_dir = Path('./saved') / args.env_name
+model_dir = Path(args.save_dir) / args.experiment_name
+
 if not model_dir.exists():
     curr_run = 'run1'
 else:
@@ -357,8 +376,11 @@ run_dir = model_dir / curr_run
 
 def run(num_epochs):
     num_episodes = 0
+    num_steps = 0
+    
     if args.save:
-        os.makedirs(run_dir)
+        os.makedirs(run_dir, exist_ok=True)
+        
     global_cpu_mem_peak = np.zeros((args.nprocesses,))
     global_gpu_mem_peak = np.zeros((args.nprocesses,))
 
@@ -379,7 +401,8 @@ def run(num_epochs):
             merge_stat(s, stat)
             trainer.display = False
             num_episodes += stat['num_episodes']
-
+            num_steps += stat['num_steps']
+            
             epoch_cpu_mem_peak = np.maximum(epoch_cpu_mem_peak, cpu_mem_peak)
             epoch_gpu_mem_peak = np.maximum(epoch_gpu_mem_peak, gpu_mem_peak)
 
@@ -402,8 +425,8 @@ def run(num_epochs):
         global_gpu_mem_peak = np.maximum(epoch_gpu_mem_peak, global_gpu_mem_peak)
 
         np.set_printoptions(precision=2)
-        print('Epoch {}\tReward {}\tTime {:.2f}s, Episodes {}, CPU Memory Peak {}MB, GPU Memory Peak {}MB'.format(
-            epoch, stat['reward'], epoch_time, num_episodes, epoch_cpu_mem_peak / 10 ** 6, epoch_gpu_mem_peak / 10 ** 6
+        print('Epoch {}\tReward {}\tTime {:.2f}s, Episodes {}, Total Steps {}, CPU Memory Peak {}MB, GPU Memory Peak {}MB'.format(
+            epoch, stat['reward'], epoch_time, num_episodes, num_steps, epoch_cpu_mem_peak / 10 ** 6, epoch_gpu_mem_peak / 10 ** 6
         ))
 
         if 'enemy_reward' in stat.keys():
@@ -447,7 +470,7 @@ def save(epoch, args):
     d['log'] = log
     d['trainer'] = trainer.state_dict()
     d['seed'] = args.seed
-    torch.save(d, run_dir / ('model_ep%i.pt' % (epoch)))
+    torch.save(d, run_dir / ('model_ep%i.pt' % (int(epoch))))
 
 
 def load(path):
