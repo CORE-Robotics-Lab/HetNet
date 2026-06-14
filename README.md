@@ -54,3 +54,6 @@ python train_fire_commander.py --algorithm_name hetgat_mappo --ppo_epoch 5 --ent
 - When the number of Action agents (--num_A) is set to 0, the Predator-Capture-Prey environment defaults to Predator-Prey.
 - For full list of parameters, default values, and descriptions, please refer to `onpolicy/config.py` and the `parse_args()` function in `onpolicy/scripts/train/train_predator.py` and `onpolicy/scripts/train/train_fire_commander.py`.
 
+### Experiment Logs
+
+Experiment logs and plotting scripts for reproducing the figures in the manuscript are available [here](https://gatech.box.com/s/v737rbbwkfa4xop1n5qgmas6b6rwkgqn). If you have trouble accessing the data or the link has expired, please contact matthew.gombolay@cc.gatech.edu.
